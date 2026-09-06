@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI 무제한 단어 학습기</title>
+  <title>AI 학습 대시보드</title>
   <style>
     :root {
       --bg: #f8fafc;
@@ -78,23 +78,11 @@
     <div class="section-header">
       <div class="section-title">
         영단어 (대학·학술 수준 10개)
-        <span class="seen-badge" id="enSeenCount">누적 학습: 0개</span>
+        <span class="seen-badge" id="enSeenCount">누적 제외: 0개</span>
       </div>
       <button class="btn-refresh" id="btn-en" onclick="fetchCategoryData('en')">새로고침 ↺</button>
     </div>
     <div class="list-grid" id="enList"></div>
-  </section>
-
-  <!-- 일본어 10개 -->
-  <section class="section-card">
-    <div class="section-header">
-      <div class="section-title">
-        일본어 (히라가나/가타카나만 10개)
-        <span class="seen-badge" id="jaSeenCount">누적 학습: 0개</span>
-      </div>
-      <button class="btn-refresh" id="btn-ja" onclick="fetchCategoryData('ja')">새로고침 ↺</button>
-    </div>
-    <div class="list-grid" id="jaList"></div>
   </section>
 
   <!-- 사자성어 2개 -->
@@ -102,7 +90,7 @@
     <div class="section-header">
       <div class="section-title">
         사자성어 (2개)
-        <span class="seen-badge" id="chSeenCount">누적 학습: 0개</span>
+        <span class="seen-badge" id="chSeenCount">누적 제외: 0개</span>
       </div>
       <button class="btn-refresh" id="btn-ch" onclick="fetchCategoryData('ch')">새로고침 ↺</button>
     </div>
@@ -116,7 +104,6 @@
 
   let seen = {
     en: JSON.parse(localStorage.getItem('seen_en') || '[]'),
-    ja: JSON.parse(localStorage.getItem('seen_ja') || '[]'),
     ch: JSON.parse(localStorage.getItem('seen_ch') || '[]')
   };
 
@@ -131,15 +118,13 @@
 
   function updateBadgeCounts() {
     document.getElementById('enSeenCount').innerText = `누적 제외: ${seen.en.length}개`;
-    document.getElementById('jaSeenCount').innerText = `누적 제외: ${seen.ja.length}개`;
     document.getElementById('chSeenCount').innerText = `누적 제외: ${seen.ch.length}개`;
   }
 
   function resetSeenHistory() {
     if (!confirm('지금까지 본 단어 제외 목록을 초기화할까요?')) return;
-    seen = { en: [], ja: [], ch: [] };
+    seen = { en: [], ch: [] };
     localStorage.removeItem('seen_en');
-    localStorage.removeItem('seen_ja');
     localStorage.removeItem('seen_ch');
     updateBadgeCounts();
     loadDay();
@@ -147,7 +132,6 @@
 
   async function callGemini(promptText) {
     if (!apiKey) throw new Error('API Key가 필요합니다.');
-    // 최신 모델 gemini-3.6-flash 적용
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
 
     const response = await fetch(url, {
@@ -189,15 +173,6 @@
 JSON 포맷 예시:
 [
   {"t": "Ambiguous", "d": "애매모호한, 두 가지 이상의 해석이 가능한"}
-]`;
-    } else if (type === 'ja') {
-      prompt = `
-당신은 일본어 교육 전문가입니다. 일상 및 실용 일본어 단어 10개를 선정하되, 한자(Kanji)는 절대 쓰지 말고 오직 히라가나 또는 가타카나로만 표기하세요.
-단어의 한글 발음과 뜻풀이를 함께 작성하세요.
-다음 단어들은 이미 학습했으므로 절대 포함하지 마세요: [${excludeList.join(', ')}]
-JSON 포맷 예시:
-[
-  {"t": "おいしい", "d": "오이시이 - 맛있다"}
 ]`;
     } else if (type === 'ch') {
       prompt = `
@@ -269,11 +244,12 @@ JSON 포맷 예시:
     loadDay();
   }
 
-  function loadDay() {
+  // 동시 호출 제한을 피하기 위해 1초 간격을 두고 순차 호출
+  async function loadDay() {
     if (!apiKey) return;
-    fetchCategoryData('en');
-    fetchCategoryData('ja');
-    fetchCategoryData('ch');
+    await fetchCategoryData('en');
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    await fetchCategoryData('ch');
   }
 
   window.onload = function() {
